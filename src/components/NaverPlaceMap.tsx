@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Script from "next/script";
-import { HiMagnifyingGlass, HiOutlineViewfinderCircle } from "react-icons/hi2";
+import {
+  HiMagnifyingGlass,
+  HiOutlineMap,
+  HiPlus,
+} from "react-icons/hi2";
 import { searchKnownPlaces } from "@/lib/location";
 import type {
   NaverMapInstance,
@@ -78,10 +82,14 @@ export default function NaverPlaceMap({
   selectedLabel,
   markers,
   onPick,
+  onAdd,
+  toolbar,
 }: {
   selectedLabel: string;
   markers: MapMarker[];
   onPick: (place: MapPlace) => void;
+  onAdd?: (place: MapPlace) => void;
+  toolbar?: ReactNode;
 }) {
   const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -204,11 +212,11 @@ export default function NaverPlaceMap({
     });
   };
 
-  const handleSelect = (place: MapPlace) => {
+  const handleAddResult = (place: MapPlace) => {
     setResults([]);
-    setQuery(place.address);
+    setQuery("");
     setSearchError("");
-    onPick(place);
+    (onAdd ?? onPick)(place);
   };
 
   const handleLocateMe = () => {
@@ -277,13 +285,23 @@ export default function NaverPlaceMap({
         disabled={locating}
         className="mx-auto flex items-center justify-center gap-1.5 py-1 text-sm font-semibold text-brand disabled:opacity-60"
       >
-        <HiOutlineViewfinderCircle className="h-4 w-4" aria-hidden />
+        <HiOutlineMap className="h-4 w-4" aria-hidden />
         {locating ? "위치를 찾는 중..." : "내위치 불러오기"}
       </button>
       <p className="text-[11px] text-muted">
-        검색하거나 내위치를 불러오면{" "}
-        <span className="font-semibold text-brand-dark">{selectedLabel}</span>
-        에 넣어요
+        {onAdd ? (
+          <>
+            엔터로 검색한 뒤 + 로 출발지를 추가해요. 지도·내위치는{" "}
+            <span className="font-semibold text-brand-dark">{selectedLabel}</span>
+            에 넣어요
+          </>
+        ) : (
+          <>
+            검색하거나 내위치를 불러오면{" "}
+            <span className="font-semibold text-brand-dark">{selectedLabel}</span>
+            에 넣어요
+          </>
+        )}
       </p>
       {searchError && <p className="text-xs text-coral">{searchError}</p>}
       {results.length > 0 && (
@@ -292,16 +310,24 @@ export default function NaverPlaceMap({
             <li key={`${place.address}-${place.lat}`}>
               <button
                 type="button"
-                onClick={() => handleSelect(place)}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-brand-soft"
+                onClick={() => handleAddResult(place)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-brand-soft"
               >
-                {place.address}
+                <span className="min-w-0 flex-1 truncate">{place.address}</span>
+                <span
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-light text-brand"
+                  aria-hidden
+                >
+                  <HiPlus className="h-4 w-4" />
+                </span>
+                <span className="sr-only">추가</span>
               </button>
             </li>
           ))}
         </ul>
       )}
       {scriptError && <p className="text-xs text-coral">{scriptError}</p>}
+      {toolbar}
       <Script
         src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`}
         strategy="afterInteractive"
@@ -310,10 +336,9 @@ export default function NaverPlaceMap({
           setScriptError("네이버 지도를 불러오지 못했어요. 도메인 등록을 확인해주세요.")
         }
       />
-      <div
-        ref={containerRef}
-        className="h-56 w-full overflow-hidden rounded-2xl border border-brand-light bg-brand-soft"
-      />
+      <div className="relative z-0 isolate overflow-hidden rounded-2xl border border-brand-light bg-brand-soft">
+        <div ref={containerRef} className="h-56 w-full" />
+      </div>
     </div>
   );
 }

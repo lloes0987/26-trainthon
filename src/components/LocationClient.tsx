@@ -26,6 +26,8 @@ import type {
   StationCandidate,
 } from "@/lib/types";
 import { roomKind, STATUS_LABELS } from "@/lib/types";
+import PageHero from "@/components/PageHero";
+import { DirectInputNavLink } from "@/components/TopNav";
 
 interface LocationClientProps {
   room: Room;
@@ -269,10 +271,26 @@ export default function LocationClient({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="cute-hero relative shrink-0 bg-[#003876] px-5 py-2.5 text-center text-white">
-        <p className="text-[11px] font-medium text-white/75">여기서</p>
-        <h1 className="font-cute text-lg leading-tight">{room.title}</h1>
-      </header>
+      <PageHero
+        badge="여기서"
+        title={isLocationOnly ? room.title : "중간 장소 추천하기"}
+        extra={<DirectInputNavLink />}
+      >
+        {!isLocationOnly && (
+          <p className="mt-0.5 text-center text-[11px] text-white/75">
+            {room.title}
+          </p>
+        )}
+        {!isLocationOnly && room.date_candidates.length > 0 && (
+          <button
+            type="button"
+            onClick={() => router.push(`/room/${room.share_code}/date`)}
+            className="mx-auto mt-1.5 block text-[11px] font-semibold text-white/85 underline decoration-white/40 underline-offset-2"
+          >
+            날짜만 정하기
+          </button>
+        )}
+      </PageHero>
 
       <div className="cute-sheet -mt-2 flex-1 space-y-4 px-5 pb-24 pt-4">
         <p className="text-xs text-muted">
@@ -408,13 +426,24 @@ export default function LocationClient({
         )}
 
         {!isLocationOnly && (
-          <button
-            type="button"
-            onClick={() => router.push(`/room/${room.share_code}`)}
-            className="text-sm text-muted hover:text-brand"
-          >
-            ← 약속방으로 돌아가기
-          </button>
+          <div className="flex flex-col items-start gap-2">
+            {room.date_candidates.length > 0 && (
+              <button
+                type="button"
+                onClick={() => router.push(`/room/${room.share_code}/date`)}
+                className="text-sm font-semibold text-brand"
+              >
+                날짜만 정하기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => router.push(`/room/${room.share_code}`)}
+              className="text-sm text-muted hover:text-brand"
+            >
+              ← 약속방으로 돌아가기
+            </button>
+          </div>
         )}
       </div>
 

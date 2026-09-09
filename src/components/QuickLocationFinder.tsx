@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HiPlus } from "react-icons/hi2";
+import PageHero from "@/components/PageHero";
 import { geocodeOnly, recommendMidpoint } from "@/lib/actions/location";
 import { createLocationMeetup } from "@/lib/actions/room";
 import { markSharePrompt } from "@/lib/share-url";
@@ -26,9 +27,13 @@ function newEntry(): Entry {
   return { id: crypto.randomUUID(), name: "", address: "" };
 }
 
-export default function QuickLocationFinder() {
+export default function QuickLocationFinder({
+  initialMode = "self",
+}: {
+  initialMode?: EntryMode;
+}) {
   const router = useRouter();
-  const [entryMode, setEntryMode] = useState<EntryMode>("self");
+  const [entryMode, setEntryMode] = useState<EntryMode>(initialMode);
   const [inviteTitle, setInviteTitle] = useState("");
   const [entries, setEntries] = useState<Entry[]>([newEntry(), newEntry()]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -98,6 +103,28 @@ export default function QuickLocationFinder() {
     });
   };
 
+  const handleAddPlace = (place: MapPlace) => {
+    const empty = entries.find((entry) => !entry.address.trim());
+    if (empty) {
+      updateEntry(empty.id, {
+        address: place.address,
+        lat: place.lat,
+        lng: place.lng,
+      });
+      setSelectedId(empty.id);
+      return;
+    }
+
+    const next = {
+      ...newEntry(),
+      address: place.address,
+      lat: place.lat,
+      lng: place.lng,
+    };
+    setEntries((prev) => [...prev, next]);
+    setSelectedId(next.id);
+  };
+
   const handleRecommend = async () => {
     const filled = entries.filter((e) => e.address.trim());
     if (filled.length < 2) {
@@ -159,10 +186,7 @@ export default function QuickLocationFinder() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="cute-hero relative shrink-0 bg-[#003876] px-5 py-2.5 text-center text-white">
-        <p className="text-[11px] font-medium text-white/75">여기서</p>
-        <h1 className="font-cute text-lg leading-tight">중간 지점 찾기</h1>
-      </header>
+      <PageHero badge="여기서" title="중간 지점 찾기" />
 
       <div className="cute-sheet -mt-2 flex-1 space-y-4 px-5 pb-8 pt-4">
         <p className="text-xs text-muted">
@@ -225,24 +249,34 @@ export default function QuickLocationFinder() {
           selectedLabel={`출발지 ${activeIndex + 1}`}
           markers={markers}
           onPick={handleMapPick}
+          onAdd={handleAddPlace}
+          toolbar={
+            <div className="flex flex-wrap items-center gap-2">
+              {entries.map((entry, index) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setSelectedId(entry.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    entry.id === activeId
+                      ? "bg-brand text-white"
+                      : "bg-brand-soft text-brand-dark"
+                  }`}
+                >
+                  출발지 {index + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={addEntry}
+                aria-label="출발지 추가"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-brand-light text-brand"
+              >
+                <HiPlus className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          }
         />
-
-        <div className="flex flex-wrap gap-2">
-          {entries.map((entry, index) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => setSelectedId(entry.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                entry.id === activeId
-                  ? "bg-brand text-white"
-                  : "bg-brand-soft text-brand-dark"
-              }`}
-            >
-              출발지 {index + 1}
-            </button>
-          ))}
-        </div>
 
         {entries.map((entry, index) => (
           <div key={entry.id} className="space-y-2">
@@ -282,15 +316,6 @@ export default function QuickLocationFinder() {
             />
           </div>
         ))}
-
-        <button
-          type="button"
-          onClick={addEntry}
-          className="btn-secondary inline-flex w-full items-center justify-center gap-1.5"
-        >
-          <HiPlus className="h-4 w-4" aria-hidden />
-          출발지 추가
-        </button>
 
         {error && <p className="text-sm text-coral">{error}</p>}
 
