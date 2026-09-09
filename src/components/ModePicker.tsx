@@ -28,7 +28,7 @@ export default function ModePicker() {
               <h2 className="text-[16px] font-semibold leading-5 text-brand-dark">
                 {mode.title}
               </h2>
-              <p className="mt-1 text-[13px] leading-5 text-muted">
+              <p className="mt-1 whitespace-nowrap text-[12px] leading-4 text-muted">
                 {mode.description}
               </p>
             </div>

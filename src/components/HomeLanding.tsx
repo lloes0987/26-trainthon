@@ -24,9 +24,6 @@ export default function HomeLanding() {
           <span className="glass-pill absolute left-0 top-8 animate-float">
             여기서
           </span>
-          <span className="glass-pill absolute right-0 top-16 animate-float-delayed">
-            언제
-          </span>
           <Image
             src="/yonsei-mascot-phone.png"
             alt=""
