@@ -102,20 +102,59 @@ export default function TimeGrid({
     setDragging(false);
   };
 
+  const legend = (
+    <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
+      {mode === "personal" ? (
+        <>
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-4 rounded-sm bg-brand-soft" />
+            불가능
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-4 rounded-sm bg-brand" />
+            가능
+          </span>
+          <span>드래그해서 시간을 표시하세요</span>
+        </>
+      ) : (
+        <>
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-4 rounded-sm bg-white ring-1 ring-brand-light" />
+            0명
+          </span>
+          <div className="flex h-3 overflow-hidden rounded-sm ring-1 ring-brand-light">
+            {[1, 2, 3, 4].map((step) => (
+              <div
+                key={step}
+                className="w-4"
+                style={{
+                  backgroundColor: overlapFill(step, 4),
+                }}
+              />
+            ))}
+          </div>
+          <span>{maxCount}명</span>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <div
-      className={`overflow-x-auto ${dragging ? "select-none" : ""}`}
-      onPointerUp={stopDrag}
-      onPointerCancel={stopDrag}
-      onPointerLeave={stopDrag}
-      onPointerMove={(event) => {
-        if (!isDragging.current && mode !== "group") return;
-        if (event.buttons === 0 && event.pointerType === "mouse" && !isDragging.current) {
-          return;
-        }
-        continueDrag(event.clientX, event.clientY);
-      }}
-    >
+    <div>
+      {legend}
+      <div
+        className={`overflow-x-auto ${dragging ? "select-none" : ""}`}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        onPointerLeave={stopDrag}
+        onPointerMove={(event) => {
+          if (!isDragging.current && mode !== "group") return;
+          if (event.buttons === 0 && event.pointerType === "mouse" && !isDragging.current) {
+            return;
+          }
+          continueDrag(event.clientX, event.clientY);
+        }}
+      >
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr>
@@ -170,40 +209,6 @@ export default function TimeGrid({
           ))}
         </tbody>
       </table>
-
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
-        {mode === "personal" ? (
-          <>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-4 rounded-sm bg-brand-soft" />
-              불가능
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-4 rounded-sm bg-brand" />
-              가능
-            </span>
-            <span>드래그해서 시간을 표시하세요</span>
-          </>
-        ) : (
-          <>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-4 rounded-sm bg-white ring-1 ring-brand-light" />
-              0명
-            </span>
-            <div className="flex h-3 overflow-hidden rounded-sm ring-1 ring-brand-light">
-              {[1, 2, 3, 4].map((step) => (
-                <div
-                  key={step}
-                  className="w-4"
-                  style={{
-                    backgroundColor: overlapFill(step, 4),
-                  }}
-                />
-              ))}
-            </div>
-            <span>{maxCount}명</span>
-          </>
-        )}
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import DatePoll from "@/components/DatePoll";
+import EverytimeImportSheet from "@/components/EverytimeImportSheet";
+import GoogleCalendarImportButton from "@/components/GoogleCalendarImportButton";
 import TimeGrid from "@/components/TimeGrid";
 import ShareLinkBar from "@/components/ShareLinkBar";
 import SharePromptModal from "@/components/SharePromptModal";
@@ -28,7 +29,6 @@ import {
   type Room,
 } from "@/lib/types";
 import { consumeSharePrompt } from "@/lib/share-url";
-import { HiOutlineMapPin } from "react-icons/hi2";
 import PageHero from "@/components/PageHero";
 
 interface RoomClientProps {
@@ -50,7 +50,6 @@ export default function RoomClient({
   sharePath,
   datePage = false,
 }: RoomClientProps) {
-  const router = useRouter();
   const [participants, setParticipants] =
     useState<Participant[]>(initialParticipants);
   const [allSlots, setAllSlots] = useState<AvailabilitySlot[]>(initialSlots);
@@ -63,6 +62,7 @@ export default function RoomClient({
   const [error, setError] = useState("");
   const [hoverInfo, setHoverInfo] = useState("");
   const [showSharePrompt, setShowSharePrompt] = useState(false);
+  const [calendarMessage, setCalendarMessage] = useState("");
 
   const dates = room.date_candidates;
   const isDateOnly = datePage || roomKind(room) === "date";
@@ -299,36 +299,62 @@ export default function RoomClient({
             </button>
           </form>
         ) : (
-          <p className="text-sm font-semibold text-brand-dark">
-            {isDateOnly ? `${displayId}의 날짜` : `${displayId}의 시간`}
-          </p>
-        )}
-        {error && <p className="-mt-2 text-xs text-coral">{error}</p>}
-
-        {signedIn && (
-          <div className="inline-flex rounded-full bg-brand-soft p-1">
-            <button
-              type="button"
-              onClick={() => setGridView("personal")}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${
-                gridView === "personal"
-                  ? "bg-brand text-white"
-                  : "text-muted"
-              }`}
-            >
-              {isDateOnly ? "내 날짜" : "내 시간"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setGridView("group")}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${
-                gridView === "group" ? "bg-brand text-white" : "text-muted"
-              }`}
-            >
-              그룹
-            </button>
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-brand-dark">
+              {isDateOnly ? `${displayId}의 날짜` : `${displayId}의 시간`}
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex shrink-0 rounded-full bg-brand-soft p-1">
+                  <button
+                    type="button"
+                    onClick={() => setGridView("personal")}
+                    className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${
+                      gridView === "personal"
+                        ? "bg-brand text-white"
+                        : "text-muted"
+                    }`}
+                  >
+                    {isDateOnly ? "내 날짜" : "내 시간"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGridView("group")}
+                    className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${
+                      gridView === "group" ? "bg-brand text-white" : "text-muted"
+                    }`}
+                  >
+                    그룹
+                  </button>
+                </div>
+                {showPersonal && !isDateOnly && (
+                  <div className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold leading-none">
+                    <EverytimeImportSheet
+                      dates={dates}
+                      timeStart={room.time_start}
+                      timeEnd={room.time_end}
+                      onApply={handleSelectionChange}
+                    />
+                    <span className="text-brand-light" aria-hidden>
+                      |
+                    </span>
+                    <GoogleCalendarImportButton
+                      dates={dates}
+                      timeStart={room.time_start}
+                      timeEnd={room.time_end}
+                      onApply={handleSelectionChange}
+                      onMessage={setCalendarMessage}
+                    />
+                  </div>
+                )}
+              </div>
+              {calendarMessage && (
+                <p className="text-xs font-medium text-coral">{calendarMessage}</p>
+              )}
+            </div>
           </div>
         )}
+        {error && <p className="-mt-2 text-xs text-coral">{error}</p>}
 
         {showPersonal &&
           (isDateOnly ? (
@@ -426,40 +452,6 @@ export default function RoomClient({
                   </ol>
                 )}
           </>
-        )}
-
-        {datePage ? (
-          <button
-            type="button"
-            onClick={() => router.push(`/room/${room.share_code}`)}
-            className="text-sm text-muted hover:text-brand"
-          >
-            ← 약속방으로 돌아가기
-          </button>
-        ) : (
-          <div className="flex flex-col items-start gap-2">
-            {roomKind(room) !== "date" && dates.length > 0 && (
-              <button
-                type="button"
-                onClick={() => router.push(`/room/${room.share_code}/date`)}
-                className="text-sm font-semibold text-brand"
-              >
-                날짜만 정하기
-              </button>
-            )}
-            {room.enable_location && (
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/room/${room.share_code}/location`)
-                }
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand"
-              >
-                <HiOutlineMapPin className="h-4 w-4" aria-hidden />
-                중간 장소도 찾기
-              </button>
-            )}
-          </div>
         )}
       </div>
 
