@@ -1,0 +1,364 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import TimeGrid from "@/components/TimeGrid";
+import ShareLinkBar from "@/components/ShareLinkBar";
+import SharePromptModal from "@/components/SharePromptModal";
+import { joinRoom, saveAvailability } from "@/lib/actions/room";
+import {
+  getStoredParticipantId,
+  setStoredParticipantId,
+  setStoredSessionToken,
+} from "@/lib/session";
+import {
+  calculateOverlaps,
+  formatKoreanDate,
+  formatTime12h,
+  generateTimeSlots,
+  getSlotCounts,
+  slotKey,
+} from "@/lib/time-slots";
+import type { AvailabilitySlot, Participant, Room } from "@/lib/types";
+import { consumeSharePrompt } from "@/lib/share-url";
+import { HiOutlineMapPin } from "react-icons/hi2";
+
+interface RoomClientProps {
+  room: Room;
+  initialParticipants: Participant[];
+  initialSlots: AvailabilitySlot[];
+  shareUrl: string;
+  sharePath: string;
+}
+
+type GridView = "personal" | "group";
+
+export default function RoomClient({
+  room,
+  initialParticipants,
+  initialSlots,
+  shareUrl,
+  sharePath,
+}: RoomClientProps) {
+  const router = useRouter();
+  const [participants, setParticipants] =
+    useState<Participant[]>(initialParticipants);
+  const [allSlots, setAllSlots] = useState<AvailabilitySlot[]>(initialSlots);
+  const [participantId, setParticipantId] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [gridView, setGridView] = useState<GridView>("group");
+  const [displayId, setDisplayId] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [hoverInfo, setHoverInfo] = useState("");
+  const [showSharePrompt, setShowSharePrompt] = useState(false);
+
+  const dates = room.date_candidates;
+  const times = useMemo(
+    () => generateTimeSlots(room.time_start, room.time_end),
+    [room.time_start, room.time_end],
+  );
+
+  useEffect(() => {
+    const storedId = getStoredParticipantId(room.share_code);
+    if (storedId) {
+      const p = initialParticipants.find((x) => x.id === storedId);
+      if (p) {
+        setParticipantId(storedId);
+        setDisplayId(p.display_id);
+        setSignedIn(true);
+        setGridView("personal");
+      }
+      const mySlots = initialSlots.filter((s) => s.participant_id === storedId);
+      setSelected(
+        new Set(mySlots.map((s) => slotKey(s.slot_date, s.time_slot))),
+      );
+    }
+  }, [room.share_code, initialParticipants, initialSlots]);
+
+  useEffect(() => {
+    if (consumeSharePrompt(room.share_code)) {
+      setShowSharePrompt(true);
+    }
+  }, [room.share_code]);
+
+  const availabilityByParticipant = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const slot of allSlots) {
+      if (!slot.available) continue;
+      const set = map.get(slot.participant_id) ?? new Set();
+      set.add(slotKey(slot.slot_date, slot.time_slot));
+      map.set(slot.participant_id, set);
+    }
+    return map;
+  }, [allSlots]);
+
+  const completedParticipants = participants.filter(
+    (p) => p.status === "completed",
+  );
+
+  const slotCounts = useMemo(
+    () => getSlotCounts(availabilityByParticipant),
+    [availabilityByParticipant],
+  );
+
+  const overlaps = useMemo(
+    () =>
+      calculateOverlaps(
+        dates,
+        times,
+        availabilityByParticipant,
+        completedParticipants.length || participants.length,
+      ),
+    [
+      dates,
+      times,
+      availabilityByParticipant,
+      completedParticipants.length,
+      participants.length,
+    ],
+  );
+
+  const handleSave = useCallback(
+    async (slots: Set<string>) => {
+      if (!participantId) return;
+      const slotList = Array.from(slots).map((key) => {
+        const [date, time] = key.split("|");
+        return { date, time };
+      });
+      await saveAvailability(participantId, room.id, slotList);
+
+      setAllSlots((prev) => {
+        const filtered = prev.filter((s) => s.participant_id !== participantId);
+        const next = slotList.map((s) => ({
+          id: crypto.randomUUID(),
+          room_id: room.id,
+          participant_id: participantId,
+          slot_date: s.date,
+          time_slot: s.time,
+          available: true,
+        }));
+        return [...filtered, ...next];
+      });
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.id === participantId ? { ...p, status: "completed" } : p,
+        ),
+      );
+    },
+    [participantId, room.id],
+  );
+
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const formData = new FormData();
+    formData.set("roomId", room.id);
+    formData.set("displayId", displayId);
+
+    const result = await joinRoom(formData);
+
+    if ("error" in result) {
+      setError(result.error ?? "참여에 실패했습니다.");
+      setLoading(false);
+      return;
+    }
+
+    const newParticipant: Participant = {
+      id: result.participantId!,
+      room_id: room.id,
+      display_id: displayId.trim(),
+      status: "in_progress",
+      joined_at: new Date().toISOString(),
+    };
+    setParticipants((prev) => {
+      if (prev.some((p) => p.id === newParticipant.id)) {
+        return prev.map((p) =>
+          p.id === newParticipant.id ? { ...p, status: "in_progress" } : p,
+        );
+      }
+      return [...prev, newParticipant];
+    });
+
+    setStoredParticipantId(room.share_code, result.participantId!);
+    setStoredSessionToken(room.share_code, result.sessionToken!);
+    setParticipantId(result.participantId!);
+    setSignedIn(true);
+    setGridView("personal");
+    setLoading(false);
+  };
+
+  const handleSelectionChange = (next: Set<string>) => {
+    setSelected(next);
+    if (signedIn && participantId) handleSave(next);
+  };
+
+  const handleSlotHover = (date: string, time: string, count: number) => {
+    if (count === 0) {
+      setHoverInfo("");
+      return;
+    }
+    const available = participants.filter((p) =>
+      availabilityByParticipant.get(p.id)?.has(slotKey(date, time)),
+    );
+    setHoverInfo(
+      `${formatKoreanDate(date)} ${formatTime12h(time)} · ${available.map((p) => p.display_id).join(", ")}`,
+    );
+  };
+
+  const showPersonal = signedIn && gridView === "personal";
+  const showGroup = !signedIn || gridView === "group";
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="cute-hero relative shrink-0 bg-[#003876] px-5 py-2.5 text-center text-white">
+        <h1 className="font-cute text-lg leading-tight">{room.title}</h1>
+        <p className="mt-0.5 text-[11px] text-white/75">
+          {dates.length}일 · {formatTime12h(room.time_start)}–
+          {formatTime12h(room.time_end)}
+        </p>
+      </header>
+
+      <div className="cute-sheet -mt-2 flex-1 space-y-4 px-5 pb-24 pt-4">
+        {!signedIn ? (
+          <form onSubmit={handleJoin} className="flex gap-2">
+            <input
+              id="displayId"
+              type="text"
+              value={displayId}
+              onChange={(e) => setDisplayId(e.target.value)}
+              placeholder="이름"
+              className="input-field mt-0 min-h-11 flex-1"
+              required
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white"
+            >
+              {loading ? "입장 중" : "참여"}
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm font-semibold text-brand-dark">
+            {displayId}의 시간
+          </p>
+        )}
+        {error && <p className="-mt-2 text-xs text-coral">{error}</p>}
+
+        {signedIn && (
+          <div className="inline-flex rounded-full bg-brand-soft p-1">
+            <button
+              type="button"
+              onClick={() => setGridView("personal")}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${
+                gridView === "personal"
+                  ? "bg-brand text-white"
+                  : "text-muted"
+              }`}
+            >
+              내 시간
+            </button>
+            <button
+              type="button"
+              onClick={() => setGridView("group")}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${
+                gridView === "group" ? "bg-brand text-white" : "text-muted"
+              }`}
+            >
+              그룹
+            </button>
+          </div>
+        )}
+
+        {showPersonal && (
+          <TimeGrid
+            dates={dates}
+            timeStart={room.time_start}
+            timeEnd={room.time_end}
+            selected={selected}
+            onChange={handleSelectionChange}
+          />
+        )}
+
+        {showGroup && (
+          <>
+            {hoverInfo ? (
+              <p className="rounded-xl bg-brand-soft px-3 py-2 text-xs text-brand-dark">
+                {hoverInfo}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted">
+                칸을 누르면 누가 가능한지 보여요
+              </p>
+            )}
+            <TimeGrid
+              dates={dates}
+              timeStart={room.time_start}
+              timeEnd={room.time_end}
+              selected={new Set()}
+              onChange={() => {}}
+              slotCounts={slotCounts}
+              maxCount={Math.max(completedParticipants.length, 1)}
+              mode="group"
+              readOnly
+              onSlotHover={handleSlotHover}
+            />
+            {overlaps.length > 0 && completedParticipants.length > 0 && (
+              <ol className="space-y-2">
+                {overlaps.slice(0, 3).map((range, i) => (
+                  <li
+                    key={`${range.date}-${range.startTime}`}
+                    className="flex items-center gap-3 rounded-xl bg-brand-soft px-3 py-2.5 text-sm"
+                  >
+                    <span className="font-bold text-brand">{i + 1}</span>
+                    <span>
+                      {formatKoreanDate(range.date)}{" "}
+                      {range.startTime.slice(0, 5)}–{range.endTime.slice(0, 5)}
+                    </span>
+                    <span className="ml-auto text-xs text-muted">
+                      {range.count}명
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </>
+        )}
+
+        {room.enable_location && (
+          <button
+            type="button"
+            onClick={() => router.push(`/room/${room.share_code}/location`)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand"
+          >
+            <HiOutlineMapPin className="h-4 w-4" aria-hidden />
+            중간 장소도 찾기
+          </button>
+        )}
+      </div>
+
+      {!showSharePrompt && (
+        <div className="sticky bottom-0 z-40 border-t border-brand-light bg-white/95 p-3">
+          <ShareLinkBar
+            url={shareUrl}
+            title={room.title}
+            sharePath={sharePath}
+          />
+        </div>
+      )}
+
+      {showSharePrompt && (
+        <SharePromptModal
+          url={shareUrl}
+          title={room.title}
+          sharePath={sharePath}
+          onClose={() => setShowSharePrompt(false)}
+        />
+      )}
+    </div>
+  );
+}
