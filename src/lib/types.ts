@@ -1,6 +1,8 @@
 export type ParticipantStatus = "not_started" | "in_progress" | "completed";
 
-export type RoomKind = "time" | "location" | "both";
+export type RoomKind = "time" | "date" | "location" | "both";
+
+export const DATE_ONLY_SLOT = "all-day";
 
 export interface Room {
   id: string;

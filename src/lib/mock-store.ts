@@ -1,11 +1,12 @@
 import { customAlphabet } from "nanoid";
-import type {
-  AvailabilitySlot,
-  FinalDecision,
-  Participant,
-  ParticipantLocation,
-  Room,
-  RoomKind,
+import {
+  DATE_ONLY_SLOT,
+  type AvailabilitySlot,
+  type FinalDecision,
+  type Participant,
+  type ParticipantLocation,
+  type Room,
+  type RoomKind,
 } from "./types";
 
 const generateShareCode = customAlphabet(
@@ -198,13 +199,18 @@ export function saveAvailabilityData(
   participantId: string,
   roomId: string,
   slots: Array<{ date: string; time: string }>,
+  slotKind: "date" | "time" = "time",
 ): { success: true } | { error: string } {
   ensureStore();
 
   const data = store.get(shareCode);
   if (!data) return { error: "약속방을 찾을 수 없습니다." };
 
-  data.slots = data.slots.filter((s) => s.participant_id !== participantId);
+  data.slots = data.slots.filter((s) => {
+    if (s.participant_id !== participantId) return true;
+    const isDateSlot = s.time_slot === DATE_ONLY_SLOT;
+    return slotKind === "date" ? !isDateSlot : isDateSlot;
+  });
 
   for (const s of slots) {
     data.slots.push({

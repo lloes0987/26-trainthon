@@ -37,6 +37,7 @@ export function validateCreateRoom(input: {
   dates: string[];
   timeStart: string;
   timeEnd: string;
+  dateOnly?: boolean;
 }): FieldErrors {
   const errors: FieldErrors = {};
 
@@ -50,9 +51,11 @@ export function validateCreateRoom(input: {
     errors.dates = "날짜를 하나 이상 선택해주세요.";
   }
 
-  const rangeError = validateTimeRange(input.timeStart, input.timeEnd);
-  if (rangeError) {
-    errors.timeRange = rangeError;
+  if (!input.dateOnly) {
+    const rangeError = validateTimeRange(input.timeStart, input.timeEnd);
+    if (rangeError) {
+      errors.timeRange = rangeError;
+    }
   }
 
   return errors;

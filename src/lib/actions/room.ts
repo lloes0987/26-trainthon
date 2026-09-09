@@ -18,8 +18,9 @@ export async function createRoom(formData: FormData) {
   const timeStart = formData.get("timeStart") as string;
   const timeEnd = formData.get("timeEnd") as string;
   const enableLocation = formData.get("enableLocation") === "on";
+  const dateOnly = formData.get("dateOnly") === "on";
 
-  if (!title?.trim() || dates.length === 0 || !timeStart || !timeEnd) {
+  if (!title?.trim() || dates.length === 0 || (!dateOnly && (!timeStart || !timeEnd))) {
     return { error: "필수 항목을 모두 입력해주세요." };
   }
 
@@ -29,8 +30,9 @@ export async function createRoom(formData: FormData) {
   const validationErrors = validateCreateRoom({
     title,
     dates,
-    timeStart,
-    timeEnd,
+    timeStart: dateOnly ? "09:00" : timeStart,
+    timeEnd: dateOnly ? "10:00" : timeEnd,
+    dateOnly,
   });
   if (hasFieldErrors(validationErrors)) {
     return {
@@ -45,9 +47,10 @@ export async function createRoom(formData: FormData) {
   const shareCode = createRoomData({
     title: title.trim(),
     dates,
-    timeStart,
-    timeEnd,
+    timeStart: dateOnly ? "09:00" : timeStart,
+    timeEnd: dateOnly ? "10:00" : timeEnd,
     enableLocation,
+    kind: dateOnly ? "date" : undefined,
   });
 
   return { shareCode };
@@ -87,11 +90,18 @@ export async function saveAvailability(
   participantId: string,
   roomId: string,
   slots: Array<{ date: string; time: string }>,
+  slotKind: "date" | "time" = "time",
 ) {
   const shareCode = findShareCodeByRoomId(roomId);
   if (!shareCode) return { error: "약속방을 찾을 수 없습니다." };
 
-  return saveAvailabilityData(shareCode, participantId, roomId, slots);
+  return saveAvailabilityData(
+    shareCode,
+    participantId,
+    roomId,
+    slots,
+    slotKind,
+  );
 }
 
 export async function saveLocation(

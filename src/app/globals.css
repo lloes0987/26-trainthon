@@ -209,6 +209,19 @@ body {
   }
 }
 
+select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 2.5rem;
+  line-height: 2.75rem;
+  background-image: none;
+}
+
 @utility chip {
   border-radius: var(--radius-pill);
   background-color: var(--brand-soft);

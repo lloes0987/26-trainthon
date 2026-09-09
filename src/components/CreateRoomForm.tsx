@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { HiChevronLeft, HiChevronRight } from "react-icons/hi2";
+import { HiChevronDown, HiChevronLeft, HiChevronRight } from "react-icons/hi2";
 import DatePickerCalendar from "@/components/DatePickerCalendar";
+import PageHero from "@/components/PageHero";
 import { createRoom } from "@/lib/actions/room";
 import { markSharePrompt } from "@/lib/share-url";
 import { formatTime12h, generateTimeSlots } from "@/lib/time-slots";
@@ -23,13 +24,18 @@ const inputOk = "input-field focus:border-brand focus:ring-brand/15";
 const inputErr =
   "input-field border-coral focus:border-coral focus:ring-coral/15";
 
-type CreateMode = "time" | "both";
+type CreateMode = "time" | "date" | "both";
 
 const modeCopy = {
   time: {
     badge: "언제",
     title: "겹치는 시간 찾기",
     description: "날짜를 고르고, 볼 시간대만 정하면 방을 만들어요.",
+  },
+  date: {
+    badge: "날짜",
+    title: "겹치는 날짜 찾기",
+    description: "만날 수 있는 날짜만 고르면 방을 만들어요.",
   },
   both: {
     badge: "여기서언제",
@@ -40,9 +46,13 @@ const modeCopy = {
 
 interface CreateRoomFormProps {
   mode?: CreateMode;
+  initialDateOnly?: boolean;
 }
 
-export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
+export default function CreateRoomForm({
+  mode = "both",
+  initialDateOnly = false,
+}: CreateRoomFormProps) {
   const router = useRouter();
   const now = new Date();
   const [title, setTitle] = useState("");
@@ -71,6 +81,10 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
     [timeStart],
   );
 
+  const [dateOnly, setDateOnly] = useState(
+    initialDateOnly || mode === "date",
+  );
+
   const fieldErrors = useMemo(
     () =>
       validateCreateRoom({
@@ -78,8 +92,9 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
         dates: Array.from(selectedDates),
         timeStart,
         timeEnd,
+        dateOnly,
       }),
-    [title, selectedDates, timeStart, timeEnd],
+    [title, selectedDates, timeStart, timeEnd, dateOnly],
   );
 
   const timeRangeError = validateTimeRange(timeStart, timeEnd);
@@ -110,7 +125,13 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
     setTouched({ title: true, dates: true, timeStart: true, timeEnd: true });
 
     const dates = Array.from(selectedDates).sort();
-    const errors = validateCreateRoom({ title, dates, timeStart, timeEnd });
+    const errors = validateCreateRoom({
+      title,
+      dates,
+      timeStart,
+      timeEnd,
+      dateOnly,
+    });
     if (hasFieldErrors(errors)) return;
 
     setLoading(true);
@@ -122,6 +143,7 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
     formData.set("timeStart", timeStart);
     formData.set("timeEnd", timeEnd);
     if (enableLocation) formData.set("enableLocation", "on");
+    if (dateOnly) formData.set("dateOnly", "on");
 
     const result = await createRoom(formData);
 
@@ -146,25 +168,53 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
       className="flex min-h-0 flex-1 flex-col"
       noValidate
     >
-      <header className="cute-hero relative shrink-0 bg-[#003876] px-5 py-2.5 text-center text-white">
-        <p className="text-[11px] font-medium text-white/75">{copy.badge}</p>
-        <h1 className="font-cute text-lg leading-tight">{copy.title}</h1>
-      </header>
+      <PageHero
+        badge={dateOnly ? "날짜" : copy.badge}
+        title={dateOnly ? "겹치는 날짜 찾기" : copy.title}
+      />
 
       <div className="cute-sheet -mt-2 flex-1 space-y-5 px-5 pb-8 pt-4">
-        <p className="text-xs text-muted">{copy.description}</p>
-        <input
-          id="title"
-          type="text"
-          value={title}
-          placeholder="약속 이름"
-          onChange={(e) => {
-            setTitle(e.target.value);
-            setSubmitError("");
-          }}
-          onBlur={() => setTouched((t) => ({ ...t, title: true }))}
-          className={`${touched.title && fieldErrors.title ? inputErr : inputOk} mt-0`}
-        />
+        <p className="text-xs text-muted">
+          {dateOnly
+            ? "만날 수 있는 날짜만 고르면 방을 만들어요."
+            : copy.description}
+        </p>
+        {mode !== "date" && (
+          <label className="inline-flex items-center gap-2 text-sm font-semibold text-brand-dark">
+            <input
+              type="checkbox"
+              checked={dateOnly}
+              onChange={(event) => setDateOnly(event.target.checked)}
+              className="h-4 w-4 rounded border-brand-light text-brand accent-brand"
+            />
+            날짜만 찾기
+          </label>
+        )}
+        <div>
+          <label
+            htmlFor="title"
+            className="text-sm font-bold text-brand-dark"
+          >
+            약속 이름
+            <span className="ml-0.5 text-red-500" aria-hidden>
+              *
+            </span>
+          </label>
+          <input
+            id="title"
+            type="text"
+            value={title}
+            placeholder="예: 주말 모임"
+            required
+            aria-required="true"
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setSubmitError("");
+            }}
+            onBlur={() => setTouched((t) => ({ ...t, title: true }))}
+            className={`${touched.title && fieldErrors.title ? inputErr : inputOk}`}
+          />
+        </div>
         {touched.title && fieldErrors.title && (
           <p className="-mt-3 text-xs text-coral">{fieldErrors.title}</p>
         )}
@@ -172,10 +222,44 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
         <section>
           <h2 className="text-sm font-bold text-brand-dark">
             어떤 날짜가 가능한가요?
+            <span className="ml-0.5 text-red-500" aria-hidden>
+              *
+            </span>
           </h2>
           <p className="mt-0.5 text-[11px] text-muted">
             드래그해서 날짜를 고르세요
           </p>
+          <div className="mt-3 flex items-center gap-2">
+            <button type="button" onClick={goToToday} className="btn-secondary">
+              오늘
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (viewMonth === 0) {
+                  setViewYear(viewYear - 1);
+                  setViewMonth(11);
+                } else setViewMonth(viewMonth - 1);
+              }}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand-light bg-white leading-none text-brand-dark [&_svg]:block"
+              aria-label="이전 달"
+            >
+              <HiChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (viewMonth === 11) {
+                  setViewYear(viewYear + 1);
+                  setViewMonth(0);
+                } else setViewMonth(viewMonth + 1);
+              }}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand-light bg-white leading-none text-brand-dark [&_svg]:block"
+              aria-label="다음 달"
+            >
+              <HiChevronRight className="h-5 w-5" />
+            </button>
+          </div>
           <div className="mt-3">
             <DatePickerCalendar
               selected={selectedDates}
@@ -191,79 +275,76 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
           {touched.dates && fieldErrors.dates && (
             <p className="mt-2 text-xs text-coral">{fieldErrors.dates}</p>
           )}
-          <div className="mt-3 flex gap-2">
-            <button type="button" onClick={goToToday} className="btn-secondary">
-              오늘
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (viewMonth === 0) {
-                  setViewYear(viewYear - 1);
-                  setViewMonth(11);
-                } else setViewMonth(viewMonth - 1);
-              }}
-              className="btn-secondary px-3"
-              aria-label="이전 달"
-            >
-              <HiChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (viewMonth === 11) {
-                  setViewYear(viewYear + 1);
-                  setViewMonth(0);
-                } else setViewMonth(viewMonth + 1);
-              }}
-              className="btn-secondary px-3"
-              aria-label="다음 달"
-            >
-              <HiChevronRight className="h-5 w-5" />
-            </button>
-          </div>
         </section>
 
+        {!dateOnly && (
         <section>
           <h2 className="text-sm font-bold text-brand-dark">
             어떤 시간이 가능한가요?
+            <span className="ml-0.5 text-red-500" aria-hidden>
+              *
+            </span>
           </h2>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-2 items-end gap-3">
             <div>
-              <label htmlFor="timeStart" className="text-[11px] text-muted">
-                이 시간부터
-              </label>
-              <select
-                id="timeStart"
-                value={timeStart}
-                onChange={(e) => handleStartChange(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, timeStart: true }))}
-                className={showTimeError ? inputErr : inputOk}
+              <label
+                htmlFor="timeStart"
+                className="block min-h-4 text-[11px] text-muted"
               >
-                {startOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {formatTime12h(t)}
-                  </option>
-                ))}
-              </select>
+                이 시간부터
+                <span className="ml-0.5 text-red-500" aria-hidden>
+                  *
+                </span>
+              </label>
+              <div className="relative mt-1">
+                <select
+                  id="timeStart"
+                  value={timeStart}
+                  onChange={(e) => handleStartChange(e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, timeStart: true }))}
+                  className={`${showTimeError ? inputErr : inputOk} mt-0 appearance-none pr-10`}
+                >
+                  {startOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {formatTime12h(t)}
+                    </option>
+                  ))}
+                </select>
+                <HiChevronDown
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dark"
+                  aria-hidden
+                />
+              </div>
             </div>
             <div>
-              <label htmlFor="timeEnd" className="text-[11px] text-muted">
-                이 시간까지
-              </label>
-              <select
-                id="timeEnd"
-                value={timeEnd}
-                onChange={(e) => handleEndChange(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, timeEnd: true }))}
-                className={showTimeError ? inputErr : inputOk}
+              <label
+                htmlFor="timeEnd"
+                className="block min-h-4 text-[11px] text-muted"
               >
-                {endOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {formatTime12h(t)}
-                  </option>
-                ))}
-              </select>
+                이 시간까지
+                <span className="ml-0.5 text-red-500" aria-hidden>
+                  *
+                </span>
+              </label>
+              <div className="relative mt-1">
+                <select
+                  id="timeEnd"
+                  value={timeEnd}
+                  onChange={(e) => handleEndChange(e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, timeEnd: true }))}
+                  className={`${showTimeError ? inputErr : inputOk} mt-0 appearance-none pr-10`}
+                >
+                  {endOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {formatTime12h(t)}
+                    </option>
+                  ))}
+                </select>
+                <HiChevronDown
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dark"
+                  aria-hidden
+                />
+              </div>
             </div>
           </div>
           {showTimeError && (
@@ -271,6 +352,7 @@ export default function CreateRoomForm({ mode = "both" }: CreateRoomFormProps) {
           )}
           <p className="mt-2 text-[11px] text-muted">시간대 · 서울</p>
         </section>
+        )}
 
         {submitError && <p className="text-xs text-coral">{submitError}</p>}
 

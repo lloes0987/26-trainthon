@@ -14,7 +14,7 @@ interface SharePromptModalProps {
   url: string;
   title: string;
   sharePath: string;
-  intent?: "time" | "location";
+  intent?: "time" | "date" | "location";
   onClose: () => void;
 }
 
@@ -61,7 +61,7 @@ export default function SharePromptModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex justify-center bg-black/40"
+      className="fixed inset-0 z-[200] flex justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
       aria-labelledby="share-prompt-title"
@@ -91,7 +91,9 @@ export default function SharePromptModal({
           <p className="mt-1 text-center text-sm text-muted">
             {intent === "location"
               ? "공유하고 친구의 출발지를 알아보세요"
-              : "공유하고 친구의 일정을 알아보세요"}
+              : intent === "date"
+                ? "공유하고 친구의 가능한 날짜를 알아보세요"
+                : "공유하고 친구의 일정을 알아보세요"}
           </p>
 
           <div className="mt-5 flex items-center gap-2 rounded-2xl border border-brand-light bg-brand-soft/60 px-3 py-2.5">

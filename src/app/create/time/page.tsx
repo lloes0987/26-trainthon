@@ -1,13 +1,15 @@
-import TopNav from "@/components/TopNav";
 import CreateRoomForm from "@/components/CreateRoomForm";
 
-export default function CreateTimePage() {
+export default async function CreateTimePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dateOnly?: string }>;
+}) {
+  const { dateOnly } = await searchParams;
+
   return (
-    <>
-      <TopNav />
-      <main className="flex flex-1 flex-col">
-        <CreateRoomForm mode="time" />
-      </main>
-    </>
+    <main className="flex flex-1 flex-col">
+      <CreateRoomForm mode="time" initialDateOnly={dateOnly === "1"} />
+    </main>
   );
 }

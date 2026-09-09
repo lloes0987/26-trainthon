@@ -73,6 +73,8 @@ export default function DatePickerCalendar({
     isDragging.current = false;
   };
 
+  const now = new Date();
+  const todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfWeek(viewYear, viewMonth);
   const cells: (number | null)[] = [];
@@ -120,6 +122,7 @@ export default function DatePickerCalendar({
                 }
                 const key = dateKey(viewYear, viewMonth, day);
                 const isSelected = selected.has(key);
+                const isToday = key === todayKey;
                 return (
                   <td key={col} className="p-0.5">
                     <button
@@ -129,6 +132,10 @@ export default function DatePickerCalendar({
                         isSelected
                           ? "bg-brand font-bold text-white"
                           : "bg-brand-soft/70 text-foreground/80"
+                      } ${
+                        isToday
+                          ? "ring-2 ring-inset ring-brand-dark"
+                          : "ring-1 ring-inset ring-transparent"
                       }`}
                       onPointerDown={(event) => {
                         event.preventDefault();

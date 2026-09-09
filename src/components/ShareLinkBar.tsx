@@ -13,7 +13,7 @@ interface ShareLinkBarProps {
   title: string;
   sharePath: string;
   variant?: "inline" | "prominent";
-  intent?: "time" | "location";
+  intent?: "time" | "date" | "location";
   className?: string;
 }
 
@@ -75,7 +75,9 @@ export default function ShareLinkBar({
     <div className={className}>
       {variant === "prominent" && (
         <p className="mb-3 text-sm font-semibold text-brand-dark">
-          친구에게 링크를 보내 시간을 맞춰보세요
+          {intent === "date"
+            ? "친구에게 링크를 보내 날짜를 맞춰보세요"
+            : "친구에게 링크를 보내 시간을 맞춰보세요"}
         </p>
       )}
 

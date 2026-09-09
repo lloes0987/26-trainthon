@@ -10,13 +10,18 @@ export function buildRoomShareUrl(shareCode: string, baseUrl?: string): string {
   return `${base}/room/${shareCode}`;
 }
 
+export type ShareIntent = "time" | "date" | "location";
+
 export function buildShareMessage(
   title: string,
   url: string,
-  intent: "time" | "location" = "time",
+  intent: ShareIntent = "time",
 ): string {
   if (intent === "location") {
     return `「${title}」 출발지를 입력해 주세요\n${url}`;
+  }
+  if (intent === "date") {
+    return `「${title}」 가능한 날짜를 골라 주세요\n${url}`;
   }
   return `「${title}」 약속 시간 맞춰요\n${url}`;
 }

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import TopNav from "@/components/TopNav";
 import LocationClient from "@/components/LocationClient";
 import RoomClient from "@/components/RoomClient";
 import { getRoomByCode } from "@/lib/actions/room";
@@ -25,10 +24,13 @@ export async function generateMetadata({
 
   const baseUrl = await getRequestBaseUrl();
   const shareUrl = buildRoomShareUrl(data.room.share_code, baseUrl);
+  const kind = roomKind(data.room);
   const description =
-    roomKind(data.room) === "location"
+    kind === "location"
       ? `「${data.room.title}」 출발지를 입력하고 중간 장소를 찾아보세요.`
-      : `「${data.room.title}」 약속 시간을 함께 맞춰보세요.`;
+      : kind === "date"
+        ? `「${data.room.title}」 가능한 날짜를 함께 맞춰보세요.`
+        : `「${data.room.title}」 약속 시간을 함께 맞춰보세요.`;
 
   return {
     title: `${data.room.title} — ${BRAND_NAME}`,
@@ -61,9 +63,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
   const sharePath = `/room/${room.share_code}`;
 
   return (
-    <>
-      <TopNav />
-      <main className="flex flex-1 flex-col">
+    <main className="flex flex-1 flex-col">
         {roomKind(room) === "location" ? (
           <LocationClient
             room={room}
@@ -81,7 +81,6 @@ export default async function RoomPage({ params }: RoomPageProps) {
             sharePath={sharePath}
           />
         )}
-      </main>
-    </>
+    </main>
   );
 }

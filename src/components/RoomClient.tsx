@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import DatePoll from "@/components/DatePoll";
 import TimeGrid from "@/components/TimeGrid";
 import ShareLinkBar from "@/components/ShareLinkBar";
 import SharePromptModal from "@/components/SharePromptModal";
@@ -19,9 +20,16 @@ import {
   getSlotCounts,
   slotKey,
 } from "@/lib/time-slots";
-import type { AvailabilitySlot, Participant, Room } from "@/lib/types";
+import {
+  DATE_ONLY_SLOT,
+  roomKind,
+  type AvailabilitySlot,
+  type Participant,
+  type Room,
+} from "@/lib/types";
 import { consumeSharePrompt } from "@/lib/share-url";
 import { HiOutlineMapPin } from "react-icons/hi2";
+import PageHero from "@/components/PageHero";
 
 interface RoomClientProps {
   room: Room;
@@ -29,6 +37,7 @@ interface RoomClientProps {
   initialSlots: AvailabilitySlot[];
   shareUrl: string;
   sharePath: string;
+  datePage?: boolean;
 }
 
 type GridView = "personal" | "group";
@@ -39,6 +48,7 @@ export default function RoomClient({
   initialSlots,
   shareUrl,
   sharePath,
+  datePage = false,
 }: RoomClientProps) {
   const router = useRouter();
   const [participants, setParticipants] =
@@ -55,9 +65,15 @@ export default function RoomClient({
   const [showSharePrompt, setShowSharePrompt] = useState(false);
 
   const dates = room.date_candidates;
+  const isDateOnly = datePage || roomKind(room) === "date";
+  const shareIntent = isDateOnly ? "date" : "time";
+  const slotKind = isDateOnly ? "date" : "time";
   const times = useMemo(
-    () => generateTimeSlots(room.time_start, room.time_end),
-    [room.time_start, room.time_end],
+    () =>
+      isDateOnly
+        ? [DATE_ONLY_SLOT]
+        : generateTimeSlots(room.time_start, room.time_end),
+    [isDateOnly, room.time_start, room.time_end],
   );
 
   useEffect(() => {
@@ -70,12 +86,16 @@ export default function RoomClient({
         setSignedIn(true);
         setGridView("personal");
       }
-      const mySlots = initialSlots.filter((s) => s.participant_id === storedId);
+      const mySlots = initialSlots.filter((s) => {
+        if (s.participant_id !== storedId) return false;
+        const isDateSlot = s.time_slot === DATE_ONLY_SLOT;
+        return isDateOnly ? isDateSlot : !isDateSlot;
+      });
       setSelected(
         new Set(mySlots.map((s) => slotKey(s.slot_date, s.time_slot))),
       );
     }
-  }, [room.share_code, initialParticipants, initialSlots]);
+  }, [room.share_code, initialParticipants, initialSlots, isDateOnly]);
 
   useEffect(() => {
     if (consumeSharePrompt(room.share_code)) {
@@ -87,12 +107,14 @@ export default function RoomClient({
     const map = new Map<string, Set<string>>();
     for (const slot of allSlots) {
       if (!slot.available) continue;
+      const isDateSlot = slot.time_slot === DATE_ONLY_SLOT;
+      if (isDateOnly !== isDateSlot) continue;
       const set = map.get(slot.participant_id) ?? new Set();
       set.add(slotKey(slot.slot_date, slot.time_slot));
       map.set(slot.participant_id, set);
     }
     return map;
-  }, [allSlots]);
+  }, [allSlots, isDateOnly]);
 
   const completedParticipants = participants.filter(
     (p) => p.status === "completed",
@@ -103,15 +125,26 @@ export default function RoomClient({
     [availabilityByParticipant],
   );
 
+  const heatmapMax = useMemo(() => {
+    let max = 0;
+    for (const count of slotCounts.values()) {
+      max = Math.max(max, count);
+    }
+    return Math.max(max, completedParticipants.length, 1);
+  }, [slotCounts, completedParticipants.length]);
+
   const overlaps = useMemo(
     () =>
-      calculateOverlaps(
-        dates,
-        times,
-        availabilityByParticipant,
-        completedParticipants.length || participants.length,
-      ),
+      isDateOnly
+        ? []
+        : calculateOverlaps(
+            dates,
+            times,
+            availabilityByParticipant,
+            completedParticipants.length || participants.length,
+          ),
     [
+      isDateOnly,
       dates,
       times,
       availabilityByParticipant,
@@ -127,10 +160,14 @@ export default function RoomClient({
         const [date, time] = key.split("|");
         return { date, time };
       });
-      await saveAvailability(participantId, room.id, slotList);
+      await saveAvailability(participantId, room.id, slotList, slotKind);
 
       setAllSlots((prev) => {
-        const filtered = prev.filter((s) => s.participant_id !== participantId);
+        const filtered = prev.filter((s) => {
+          if (s.participant_id !== participantId) return true;
+          const isDateSlot = s.time_slot === DATE_ONLY_SLOT;
+          return slotKind === "date" ? !isDateSlot : isDateSlot;
+        });
         const next = slotList.map((s) => ({
           id: crypto.randomUUID(),
           room_id: room.id,
@@ -147,7 +184,7 @@ export default function RoomClient({
         ),
       );
     },
-    [participantId, room.id],
+    [participantId, room.id, slotKind],
   );
 
   const handleJoin = async (e: React.FormEvent) => {
@@ -204,23 +241,42 @@ export default function RoomClient({
     const available = participants.filter((p) =>
       availabilityByParticipant.get(p.id)?.has(slotKey(date, time)),
     );
+    const names = available.map((p) => p.display_id).join(", ");
     setHoverInfo(
-      `${formatKoreanDate(date)} ${formatTime12h(time)} · ${available.map((p) => p.display_id).join(", ")}`,
+      isDateOnly
+        ? `${formatKoreanDate(date)} · ${names}`
+        : `${formatKoreanDate(date)} ${formatTime12h(time)} · ${names}`,
     );
   };
+
+  const dateOverlaps = useMemo(() => {
+    if (!isDateOnly) return [];
+    return dates
+      .map((date) => ({
+        date,
+        count: slotCounts.get(slotKey(date, DATE_ONLY_SLOT)) ?? 0,
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count || a.date.localeCompare(b.date));
+  }, [isDateOnly, dates, slotCounts]);
 
   const showPersonal = signedIn && gridView === "personal";
   const showGroup = !signedIn || gridView === "group";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="cute-hero relative shrink-0 bg-[#003876] px-5 py-2.5 text-center text-white">
-        <h1 className="font-cute text-lg leading-tight">{room.title}</h1>
-        <p className="mt-0.5 text-[11px] text-white/75">
-          {dates.length}일 · {formatTime12h(room.time_start)}–
-          {formatTime12h(room.time_end)}
+      <PageHero
+        badge={datePage ? "날짜" : undefined}
+        title={datePage ? "날짜 정하기" : room.title}
+      >
+        <p className="mt-0.5 text-center text-[11px] text-white/75">
+          {datePage
+            ? room.title
+            : isDateOnly
+              ? `${dates.length}일 · 날짜만`
+              : `${dates.length}일 · ${formatTime12h(room.time_start)}–${formatTime12h(room.time_end)}`}
         </p>
-      </header>
+      </PageHero>
 
       <div className="cute-sheet -mt-2 flex-1 space-y-4 px-5 pb-24 pt-4">
         {!signedIn ? (
@@ -244,7 +300,7 @@ export default function RoomClient({
           </form>
         ) : (
           <p className="text-sm font-semibold text-brand-dark">
-            {displayId}의 시간
+            {isDateOnly ? `${displayId}의 날짜` : `${displayId}의 시간`}
           </p>
         )}
         {error && <p className="-mt-2 text-xs text-coral">{error}</p>}
@@ -260,7 +316,7 @@ export default function RoomClient({
                   : "text-muted"
               }`}
             >
-              내 시간
+              {isDateOnly ? "내 날짜" : "내 시간"}
             </button>
             <button
               type="button"
@@ -274,15 +330,22 @@ export default function RoomClient({
           </div>
         )}
 
-        {showPersonal && (
-          <TimeGrid
-            dates={dates}
-            timeStart={room.time_start}
-            timeEnd={room.time_end}
-            selected={selected}
-            onChange={handleSelectionChange}
-          />
-        )}
+        {showPersonal &&
+          (isDateOnly ? (
+            <DatePoll
+              dates={dates}
+              selected={selected}
+              onChange={handleSelectionChange}
+            />
+          ) : (
+            <TimeGrid
+              dates={dates}
+              timeStart={room.time_start}
+              timeEnd={room.time_end}
+              selected={selected}
+              onChange={handleSelectionChange}
+            />
+          ))}
 
         {showGroup && (
           <>
@@ -292,52 +355,111 @@ export default function RoomClient({
               </p>
             ) : (
               <p className="text-[11px] text-muted">
-                칸을 누르면 누가 가능한지 보여요
+                {isDateOnly
+                  ? "날짜를 누르면 누가 가능한지 보여요"
+                  : "칸을 누르면 누가 가능한지 보여요"}
               </p>
             )}
-            <TimeGrid
-              dates={dates}
-              timeStart={room.time_start}
-              timeEnd={room.time_end}
-              selected={new Set()}
-              onChange={() => {}}
-              slotCounts={slotCounts}
-              maxCount={Math.max(completedParticipants.length, 1)}
-              mode="group"
-              readOnly
-              onSlotHover={handleSlotHover}
-            />
-            {overlaps.length > 0 && completedParticipants.length > 0 && (
-              <ol className="space-y-2">
-                {overlaps.slice(0, 3).map((range, i) => (
-                  <li
-                    key={`${range.date}-${range.startTime}`}
-                    className="flex items-center gap-3 rounded-xl bg-brand-soft px-3 py-2.5 text-sm"
-                  >
-                    <span className="font-bold text-brand">{i + 1}</span>
-                    <span>
-                      {formatKoreanDate(range.date)}{" "}
-                      {range.startTime.slice(0, 5)}–{range.endTime.slice(0, 5)}
-                    </span>
-                    <span className="ml-auto text-xs text-muted">
-                      {range.count}명
-                    </span>
-                  </li>
-                ))}
-              </ol>
+            {isDateOnly ? (
+              <DatePoll
+                dates={dates}
+                selected={new Set()}
+                onChange={() => {}}
+                slotCounts={slotCounts}
+                maxCount={heatmapMax}
+                mode="group"
+                readOnly
+                onDateHover={(date, count) =>
+                  handleSlotHover(date, DATE_ONLY_SLOT, count)
+                }
+              />
+            ) : (
+              <TimeGrid
+                dates={dates}
+                timeStart={room.time_start}
+                timeEnd={room.time_end}
+                selected={new Set()}
+                onChange={() => {}}
+                slotCounts={slotCounts}
+                maxCount={heatmapMax}
+                mode="group"
+                readOnly
+                onSlotHover={handleSlotHover}
+              />
             )}
+            {isDateOnly
+              ? dateOverlaps.length > 0 &&
+                completedParticipants.length > 0 && (
+                  <ol className="space-y-2">
+                    {dateOverlaps.slice(0, 3).map((item, i) => (
+                      <li
+                        key={item.date}
+                        className="flex items-center gap-3 rounded-xl bg-brand-soft px-3 py-2.5 text-sm"
+                      >
+                        <span className="font-bold text-brand">{i + 1}</span>
+                        <span>{formatKoreanDate(item.date)}</span>
+                        <span className="ml-auto text-xs text-muted">
+                          {item.count}명
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )
+              : overlaps.length > 0 &&
+                completedParticipants.length > 0 && (
+                  <ol className="space-y-2">
+                    {overlaps.slice(0, 3).map((range, i) => (
+                      <li
+                        key={`${range.date}-${range.startTime}`}
+                        className="flex items-center gap-3 rounded-xl bg-brand-soft px-3 py-2.5 text-sm"
+                      >
+                        <span className="font-bold text-brand">{i + 1}</span>
+                        <span>
+                          {formatKoreanDate(range.date)}{" "}
+                          {range.startTime.slice(0, 5)}–{range.endTime.slice(0, 5)}
+                        </span>
+                        <span className="ml-auto text-xs text-muted">
+                          {range.count}명
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
           </>
         )}
 
-        {room.enable_location && (
+        {datePage ? (
           <button
             type="button"
-            onClick={() => router.push(`/room/${room.share_code}/location`)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand"
+            onClick={() => router.push(`/room/${room.share_code}`)}
+            className="text-sm text-muted hover:text-brand"
           >
-            <HiOutlineMapPin className="h-4 w-4" aria-hidden />
-            중간 장소도 찾기
+            ← 약속방으로 돌아가기
           </button>
+        ) : (
+          <div className="flex flex-col items-start gap-2">
+            {roomKind(room) !== "date" && dates.length > 0 && (
+              <button
+                type="button"
+                onClick={() => router.push(`/room/${room.share_code}/date`)}
+                className="text-sm font-semibold text-brand"
+              >
+                날짜만 정하기
+              </button>
+            )}
+            {room.enable_location && (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(`/room/${room.share_code}/location`)
+                }
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand"
+              >
+                <HiOutlineMapPin className="h-4 w-4" aria-hidden />
+                중간 장소도 찾기
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -347,6 +469,7 @@ export default function RoomClient({
             url={shareUrl}
             title={room.title}
             sharePath={sharePath}
+            intent={shareIntent}
           />
         </div>
       )}
@@ -356,6 +479,7 @@ export default function RoomClient({
           url={shareUrl}
           title={room.title}
           sharePath={sharePath}
+          intent={shareIntent}
           onClose={() => setShowSharePrompt(false)}
         />
       )}
