@@ -1,4 +1,5 @@
 import { customAlphabet } from "nanoid";
+import type { RoomSnapshot } from "./room-snapshot";
 import {
   DATE_ONLY_SLOT,
   type AvailabilitySlot,
@@ -14,15 +15,7 @@ const generateShareCode = customAlphabet(
   8,
 );
 
-interface RoomData {
-  room: Room;
-  participants: Participant[];
-  slots: AvailabilitySlot[];
-  locations: ParticipantLocation[];
-  decision: FinalDecision | null;
-}
-
-const store = new Map<string, RoomData>();
+const store = new Map<string, RoomSnapshot>();
 
 function seedDemoRoom() {
   const roomId = "demo-room-id";
@@ -118,12 +111,40 @@ function seedDemoRoom() {
 }
 
 function ensureStore() {
-  if (store.size === 0) seedDemoRoom();
+  if (!store.has("demo")) seedDemoRoom();
 }
 
-export function getRoomData(shareCode: string): RoomData | null {
+export function getRoomData(shareCode: string): RoomSnapshot | null {
   ensureStore();
   return store.get(shareCode) ?? null;
+}
+
+export function listPersistedRooms(): RoomSnapshot[] {
+  ensureStore();
+  return [...store.values()].filter((data) => data.room.share_code !== "demo");
+}
+
+export function hydrateRoomData(snapshot: RoomSnapshot) {
+  ensureStore();
+  if (snapshot.room.share_code === "demo") return;
+  const existing = store.get(snapshot.room.share_code);
+  const incoming = structuredClone(snapshot);
+  if (!existing) {
+    store.set(snapshot.room.share_code, incoming);
+    return;
+  }
+
+  const existingScore =
+    existing.slots.length +
+    existing.locations.length +
+    existing.participants.length;
+  const nextScore =
+    incoming.slots.length +
+    incoming.locations.length +
+    incoming.participants.length;
+  if (nextScore >= existingScore) {
+    store.set(snapshot.room.share_code, incoming);
+  }
 }
 
 export function createRoomData(input: {

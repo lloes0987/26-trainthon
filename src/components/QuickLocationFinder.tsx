@@ -6,6 +6,7 @@ import { HiPlus } from "react-icons/hi2";
 import PageHero from "@/components/PageHero";
 import { geocodeOnly, recommendMidpoint } from "@/lib/actions/location";
 import { createLocationMeetup } from "@/lib/actions/room";
+import { writeRoomSnapshot } from "@/lib/room-snapshot";
 import { markSharePrompt } from "@/lib/share-url";
 import NaverPlaceMap, {
   type MapMarker,
@@ -180,6 +181,7 @@ export default function QuickLocationFinder({
       setLoading(false);
       return;
     }
+    if (result.snapshot) writeRoomSnapshot(result.snapshot);
     markSharePrompt(result.shareCode!);
     router.push(`/room/${result.shareCode}`);
   };

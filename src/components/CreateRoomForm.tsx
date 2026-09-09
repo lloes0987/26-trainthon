@@ -6,6 +6,7 @@ import { HiChevronDown, HiChevronLeft, HiChevronRight } from "react-icons/hi2";
 import DatePickerCalendar from "@/components/DatePickerCalendar";
 import PageHero from "@/components/PageHero";
 import { createRoom } from "@/lib/actions/room";
+import { writeRoomSnapshot } from "@/lib/room-snapshot";
 import { markSharePrompt } from "@/lib/share-url";
 import { formatTime12h, generateTimeSlots } from "@/lib/time-slots";
 import {
@@ -153,6 +154,7 @@ export default function CreateRoomForm({
       return;
     }
 
+    if (result.snapshot) writeRoomSnapshot(result.snapshot);
     markSharePrompt(result.shareCode!);
     router.push(`/room/${result.shareCode}`);
   };

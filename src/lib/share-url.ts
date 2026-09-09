@@ -5,12 +5,28 @@ export function getAppBaseUrl(): string {
   return "http://localhost:3000";
 }
 
-export function buildRoomShareUrl(shareCode: string, baseUrl?: string): string {
-  const base = (baseUrl ?? getAppBaseUrl()).replace(/\/$/, "");
-  return `${base}/room/${shareCode}`;
+export function roomShareQuery(encodedRoom?: string) {
+  return encodedRoom ? `?r=${encodedRoom}` : "";
 }
 
-export type ShareIntent = "time" | "date" | "location";
+export function buildRoomSharePath(shareCode: string, encodedRoom?: string) {
+  return `/room/${shareCode}${roomShareQuery(encodedRoom)}`;
+}
+
+export function buildLocationSharePath(shareCode: string, encodedRoom?: string) {
+  return `/room/${shareCode}/location${roomShareQuery(encodedRoom)}`;
+}
+
+export function buildRoomShareUrl(
+  shareCode: string,
+  baseUrl?: string,
+  encodedRoom?: string,
+): string {
+  const base = (baseUrl ?? getAppBaseUrl()).replace(/\/$/, "");
+  return `${base}${buildRoomSharePath(shareCode, encodedRoom)}`;
+}
+
+export type ShareIntent = "time" | "date" | "location" | "both";
 
 export function buildShareMessage(
   title: string,
@@ -22,6 +38,9 @@ export function buildShareMessage(
   }
   if (intent === "date") {
     return `「${title}」 가능한 날짜를 골라 주세요\n${url}`;
+  }
+  if (intent === "both") {
+    return `「${title}」 가능한 시간과 출발지를 알려 주세요\n${url}`;
   }
   return `「${title}」 약속 시간 맞춰요\n${url}`;
 }

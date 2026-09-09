@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import RoomFlowSteps from "@/components/RoomFlowSteps";
 import DatePoll from "@/components/DatePoll";
 import EverytimeImportSheet from "@/components/EverytimeImportSheet";
 import GoogleCalendarImportButton from "@/components/GoogleCalendarImportButton";
@@ -27,15 +28,19 @@ import {
   roomKind,
   type AvailabilitySlot,
   type Participant,
+  type ParticipantLocation,
   type Room,
 } from "@/lib/types";
-import { consumeSharePrompt } from "@/lib/share-url";
+import { writeRoomSnapshot } from "@/lib/room-snapshot";
+import { buildLocationSharePath, consumeSharePrompt } from "@/lib/share-url";
 import PageHero from "@/components/PageHero";
 
 interface RoomClientProps {
   room: Room;
   initialParticipants: Participant[];
   initialSlots: AvailabilitySlot[];
+  initialLocations?: ParticipantLocation[];
+  encodedRoom?: string;
   shareUrl: string;
   sharePath: string;
   datePage?: boolean;
@@ -47,11 +52,12 @@ export default function RoomClient({
   room,
   initialParticipants,
   initialSlots,
+  initialLocations = [],
+  encodedRoom,
   shareUrl,
   sharePath,
   datePage = false,
 }: RoomClientProps) {
-  const router = useRouter();
   const [participants, setParticipants] =
     useState<Participant[]>(initialParticipants);
   const [allSlots, setAllSlots] = useState<AvailabilitySlot[]>(initialSlots);
@@ -66,9 +72,20 @@ export default function RoomClient({
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [calendarMessage, setCalendarMessage] = useState("");
 
+  useEffect(() => {
+    writeRoomSnapshot({
+      room,
+      participants,
+      slots: allSlots,
+      locations: initialLocations,
+      decision: null,
+    });
+  }, [room, participants, allSlots, initialLocations]);
+
   const dates = room.date_candidates;
   const isDateOnly = datePage || roomKind(room) === "date";
-  const shareIntent = isDateOnly ? "date" : "time";
+  const isBoth = !datePage && room.enable_location;
+  const shareIntent = isBoth ? "both" : isDateOnly ? "date" : "time";
   const slotKind = isDateOnly ? "date" : "time";
   const times = useMemo(
     () =>
@@ -281,24 +298,39 @@ export default function RoomClient({
       </PageHero>
 
       <div className="cute-sheet -mt-2 flex-1 space-y-4 px-5 pb-24 pt-4">
+        {isBoth && (
+          <RoomFlowSteps
+            code={room.share_code}
+            current="time"
+            encodedRoom={encodedRoom}
+          />
+        )}
+
         {!signedIn ? (
-          <form onSubmit={handleJoin} className="flex gap-2">
-            <input
-              id="displayId"
-              type="text"
-              value={displayId}
-              onChange={(e) => setDisplayId(e.target.value)}
-              placeholder="이름"
-              className="input-field mt-0 min-h-11 flex-1"
-              required
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white"
-            >
-              {loading ? "입장 중" : "참여"}
-            </button>
+          <form onSubmit={handleJoin} className="space-y-2">
+            {isBoth && (
+              <p className="text-xs text-muted">
+                이름을 넣고 참여하면 내 시간, 이어서 장소를 등록해요
+              </p>
+            )}
+            <div className="flex gap-2">
+              <input
+                id="displayId"
+                type="text"
+                value={displayId}
+                onChange={(e) => setDisplayId(e.target.value)}
+                placeholder="이름"
+                className="input-field mt-0 min-h-11 flex-1"
+                required
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white"
+              >
+                {loading ? "입장 중" : "참여"}
+              </button>
+            </div>
           </form>
         ) : (
           <div className="space-y-3">
@@ -459,14 +491,13 @@ export default function RoomClient({
 
       {!showSharePrompt && (
         <div className="sticky bottom-0 z-40 space-y-2 border-t border-brand-light bg-white/95 p-3">
-          {!datePage && room.enable_location && (
-            <button
-              type="button"
-              onClick={() => router.push(`/room/${room.share_code}/location`)}
+          {signedIn && isBoth && (
+            <Link
+              href={buildLocationSharePath(room.share_code, encodedRoom)}
               className="btn-cta w-full"
             >
-              이어서 중간 장소 찾기
-            </button>
+              다음: 장소 등록
+            </Link>
           )}
           <ShareLinkBar
             url={shareUrl}

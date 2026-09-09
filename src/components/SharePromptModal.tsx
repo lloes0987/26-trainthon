@@ -14,7 +14,7 @@ interface SharePromptModalProps {
   url: string;
   title: string;
   sharePath: string;
-  intent?: "time" | "date" | "location";
+  intent?: "time" | "date" | "location" | "both";
   onClose: () => void;
 }
 
@@ -93,7 +93,9 @@ export default function SharePromptModal({
               ? "공유하고 친구의 출발지를 알아보세요"
               : intent === "date"
                 ? "공유하고 친구의 가능한 날짜를 알아보세요"
-                : "공유하고 친구의 일정을 알아보세요"}
+                : intent === "both"
+                  ? "친구가 이름만 넣으면 시간과 장소를 이어서 등록해요"
+                  : "공유하고 친구의 일정을 알아보세요"}
           </p>
 
           <div className="mt-5 flex items-center gap-2 rounded-2xl border border-brand-light bg-brand-soft/60 px-3 py-2.5">

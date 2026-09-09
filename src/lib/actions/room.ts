@@ -1,16 +1,61 @@
 "use server";
 
+import { cookies } from "next/headers";
 import {
   createLocationRoomData,
   createRoomData,
   findShareCodeByParticipantId,
   findShareCodeByRoomId,
   getRoomData,
+  hydrateRoomData,
   joinRoomData,
+  listPersistedRooms,
   saveAvailabilityData,
   saveFinalDecisionData,
   saveLocationData,
 } from "@/lib/mock-store";
+import {
+  ROOM_COOKIE,
+  decodeRoomSnapshots,
+  encodeRoomSnapshots,
+  isRoomSnapshot,
+  decodeShareRoom,
+  emptyRoomSnapshot,
+  packRoomSnapshots,
+  type RoomSnapshot,
+} from "@/lib/room-snapshot";
+
+async function restoreRoomsCookie() {
+  const raw = (await cookies()).get(ROOM_COOKIE)?.value;
+  if (!raw) return;
+  for (const snapshot of decodeRoomSnapshots(raw)) {
+    hydrateRoomData(snapshot);
+  }
+}
+
+async function persistRoomsCookie() {
+  const packed = packRoomSnapshots(listPersistedRooms());
+  if (packed.length === 0) return;
+  (await cookies()).set(ROOM_COOKIE, encodeRoomSnapshots(packed), {
+    path: "/",
+    sameSite: "lax",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 14,
+  });
+}
+
+async function readStore<T>(fn: () => T): Promise<T> {
+  await restoreRoomsCookie();
+  return fn();
+}
+
+async function writeStore<T>(fn: () => T): Promise<T> {
+  await restoreRoomsCookie();
+  const result = fn();
+  await persistRoomsCookie();
+  return result;
+}
 
 export async function createRoom(formData: FormData) {
   const title = formData.get("title") as string;
@@ -44,16 +89,18 @@ export async function createRoom(formData: FormData) {
     };
   }
 
-  const shareCode = createRoomData({
-    title: title.trim(),
-    dates,
-    timeStart: dateOnly ? "09:00" : timeStart,
-    timeEnd: dateOnly ? "10:00" : timeEnd,
-    enableLocation,
-    kind: dateOnly ? "date" : undefined,
-  });
+  const shareCode = await writeStore(() =>
+    createRoomData({
+      title: title.trim(),
+      dates,
+      timeStart: dateOnly ? "09:00" : timeStart,
+      timeEnd: dateOnly ? "10:00" : timeEnd,
+      enableLocation,
+      kind: dateOnly ? "date" : undefined,
+    }),
+  );
 
-  return { shareCode };
+  return { shareCode, snapshot: getRoomData(shareCode) };
 }
 
 export async function createLocationMeetup(title: string) {
@@ -61,7 +108,8 @@ export async function createLocationMeetup(title: string) {
   if (trimmed.length > 40) {
     return { error: "약속 이름은 40자 이내로 적어주세요." };
   }
-  return { shareCode: createLocationRoomData(trimmed) };
+  const shareCode = await writeStore(() => createLocationRoomData(trimmed));
+  return { shareCode, snapshot: getRoomData(shareCode) };
 }
 
 export async function joinRoom(formData: FormData) {
@@ -72,12 +120,14 @@ export async function joinRoom(formData: FormData) {
     return { error: "아이디 또는 이름을 입력해주세요." };
   }
 
-  const shareCode = findShareCodeByRoomId(roomId);
+  const shareCode = await readStore(() => findShareCodeByRoomId(roomId));
   if (!shareCode) {
     return { error: "약속방을 찾을 수 없습니다." };
   }
 
-  const result = joinRoomData(shareCode, roomId, displayId.trim());
+  const result = await writeStore(() =>
+    joinRoomData(shareCode, roomId, displayId.trim()),
+  );
   if ("error" in result) return result;
 
   return {
@@ -92,15 +142,11 @@ export async function saveAvailability(
   slots: Array<{ date: string; time: string }>,
   slotKind: "date" | "time" = "time",
 ) {
-  const shareCode = findShareCodeByRoomId(roomId);
+  const shareCode = await readStore(() => findShareCodeByRoomId(roomId));
   if (!shareCode) return { error: "약속방을 찾을 수 없습니다." };
 
-  return saveAvailabilityData(
-    shareCode,
-    participantId,
-    roomId,
-    slots,
-    slotKind,
+  return writeStore(() =>
+    saveAvailabilityData(shareCode, participantId, roomId, slots, slotKind),
   );
 }
 
@@ -110,10 +156,14 @@ export async function saveLocation(
   lat: number,
   lng: number,
 ) {
-  const shareCode = findShareCodeByParticipantId(participantId);
+  const shareCode = await readStore(() =>
+    findShareCodeByParticipantId(participantId),
+  );
   if (!shareCode) return { error: "약속방을 찾을 수 없습니다." };
 
-  return saveLocationData(shareCode, participantId, address, lat, lng);
+  return writeStore(() =>
+    saveLocationData(shareCode, participantId, address, lat, lng),
+  );
 }
 
 export async function saveFinalDecision(
@@ -123,20 +173,44 @@ export async function saveFinalDecision(
   startTime?: string,
   endTime?: string,
 ) {
-  const shareCode = findShareCodeByRoomId(roomId);
+  const shareCode = await readStore(() => findShareCodeByRoomId(roomId));
   if (!shareCode) return { error: "약속방을 찾을 수 없습니다." };
 
-  return saveFinalDecisionData(
-    shareCode,
-    roomId,
-    place,
-    date,
-    startTime,
-    endTime,
+  return writeStore(() =>
+    saveFinalDecisionData(shareCode, roomId, place, date, startTime, endTime),
   );
 }
 
-export async function getRoomByCode(shareCode: string) {
+export async function importRoomSnapshot(snapshot: RoomSnapshot) {
+  if (!isRoomSnapshot(snapshot)) {
+    return { error: "약속방 정보가 올바르지 않아요." };
+  }
+  await writeStore(() => {
+    hydrateRoomData(snapshot);
+  });
+  return { ok: true as const };
+}
+
+export async function importSharedRoom(shareCode: string, encodedRoom: string) {
+  const room = decodeShareRoom(encodedRoom);
+  if (!room || room.share_code !== shareCode) {
+    return { error: "약속방 정보가 올바르지 않아요." };
+  }
+  await writeStore(() => {
+    hydrateRoomData(emptyRoomSnapshot(room));
+  });
+  return { ok: true as const };
+}
+
+export async function getRoomByCode(shareCode: string, encodedRoom?: string) {
+  await restoreRoomsCookie();
+  if (encodedRoom) {
+    const room = decodeShareRoom(encodedRoom);
+    if (room && room.share_code === shareCode) {
+      hydrateRoomData(emptyRoomSnapshot(room));
+    }
+  }
+
   const data = getRoomData(shareCode);
   if (!data) return null;
 
