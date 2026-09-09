@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import DatePoll from "@/components/DatePoll";
 import EverytimeImportSheet from "@/components/EverytimeImportSheet";
 import GoogleCalendarImportButton from "@/components/GoogleCalendarImportButton";
@@ -50,6 +51,7 @@ export default function RoomClient({
   sharePath,
   datePage = false,
 }: RoomClientProps) {
+  const router = useRouter();
   const [participants, setParticipants] =
     useState<Participant[]>(initialParticipants);
   const [allSlots, setAllSlots] = useState<AvailabilitySlot[]>(initialSlots);
@@ -456,7 +458,16 @@ export default function RoomClient({
       </div>
 
       {!showSharePrompt && (
-        <div className="sticky bottom-0 z-40 border-t border-brand-light bg-white/95 p-3">
+        <div className="sticky bottom-0 z-40 space-y-2 border-t border-brand-light bg-white/95 p-3">
+          {!datePage && room.enable_location && (
+            <button
+              type="button"
+              onClick={() => router.push(`/room/${room.share_code}/location`)}
+              className="btn-cta w-full"
+            >
+              이어서 중간 장소 찾기
+            </button>
+          )}
           <ShareLinkBar
             url={shareUrl}
             title={room.title}
