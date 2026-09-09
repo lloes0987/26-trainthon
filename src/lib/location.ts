@@ -34,7 +34,42 @@ export const SEOUL_STATIONS: Array<{ name: string; lat: number; lng: number }> =
   { name: "혜화역", lat: 37.5822, lng: 127.0018 },
   { name: "동대문역", lat: 37.571, lng: 127.0094 },
   { name: "신도림역", lat: 37.5088, lng: 126.8912 },
+  { name: "을지로입구역", lat: 37.566, lng: 126.9826 },
+  { name: "종각역", lat: 37.5702, lng: 126.9831 },
+  { name: "충무로역", lat: 37.5614, lng: 126.9943 },
+  { name: "회현역", lat: 37.5585, lng: 126.9781 },
+  { name: "광화문역", lat: 37.5716, lng: 126.9764 },
+  { name: "경복궁역", lat: 37.5758, lng: 126.9733 },
+  { name: "안국역", lat: 37.5765, lng: 126.9854 },
+  { name: "동대문역사문화공원역", lat: 37.5656, lng: 127.009 },
+  { name: "충정로역", lat: 37.5598, lng: 126.9644 },
+  { name: "서대문역", lat: 37.5658, lng: 126.9666 },
+  { name: "삼각지역", lat: 37.5345, lng: 126.9731 },
+  { name: "숙대입구역", lat: 37.5446, lng: 126.9721 },
+  { name: "신용산역", lat: 37.5292, lng: 126.9678 },
+  { name: "이촌역", lat: 37.5223, lng: 126.9734 },
+  { name: "노량진역", lat: 37.5142, lng: 126.9427 },
+  { name: "교대역", lat: 37.4934, lng: 127.0142 },
+  { name: "서초역", lat: 37.4919, lng: 127.0079 },
+  { name: "신논현역", lat: 37.5046, lng: 127.0254 },
+  { name: "논현역", lat: 37.5111, lng: 127.0216 },
+  { name: "압구정역", lat: 37.5274, lng: 127.0285 },
+  { name: "삼성역", lat: 37.5088, lng: 127.0632 },
+  { name: "양재역", lat: 37.4846, lng: 127.0341 },
+  { name: "서울대입구역", lat: 37.4813, lng: 126.9527 },
+  { name: "당산역", lat: 37.5345, lng: 126.9026 },
+  { name: "디지털미디어시티역", lat: 37.5766, lng: 126.9005 },
+  { name: "상수역", lat: 37.5478, lng: 126.9226 },
+  { name: "이대역", lat: 37.5567, lng: 126.946 },
+  { name: "아현역", lat: 37.5574, lng: 126.9562 },
+  { name: "한강진역", lat: 37.5372, lng: 127.0017 },
+  { name: "약수역", lat: 37.5547, lng: 127.0106 },
+  { name: "신당역", lat: 37.5656, lng: 127.0195 },
 ];
+
+export const ORIGIN_EXCLUDE_KM = 0.4;
+
+type NamedPoint = { name: string; lat: number; lng: number };
 
 export function searchKnownPlaces(
   query: string,
@@ -83,35 +118,63 @@ export function calculateCentroid(locations: LatLng[]): LatLng {
   };
 }
 
+function uniqueStations(stations: NamedPoint[]): NamedPoint[] {
+  const unique: NamedPoint[] = [];
+  for (const station of stations) {
+    const duplicate = unique.some(
+      (item) =>
+        item.name === station.name ||
+        haversineDistance(item, station) < 0.12,
+    );
+    if (!duplicate) unique.push(station);
+  }
+  return unique;
+}
+
+function isOriginStation(station: LatLng, origins: LatLng[]) {
+  return origins.some(
+    (origin) => haversineDistance(station, origin) < ORIGIN_EXCLUDE_KM,
+  );
+}
+
+function scoreStation(
+  station: NamedPoint,
+  origins: LatLng[],
+  midpoint: LatLng,
+) {
+  const distances = origins.map((origin) =>
+    haversineDistance(origin, station),
+  );
+  const avgDistance =
+    distances.reduce((sum, value) => sum + value, 0) / distances.length;
+  const maxDistance = Math.max(...distances);
+  const midpointDist = haversineDistance(midpoint, station);
+
+  return {
+    name: station.name,
+    lat: station.lat,
+    lng: station.lng,
+    avgDistance,
+    maxDistance,
+    score: maxDistance * 0.55 + avgDistance * 0.35 + midpointDist * 0.1,
+  };
+}
+
 export function recommendStations(
   locations: LatLng[],
   limit = 3,
+  extraCandidates: NamedPoint[] = [],
 ): StationCandidate[] {
   if (locations.length === 0) return [];
 
-  const centroid = calculateCentroid(locations);
-
-  const candidates = SEOUL_STATIONS.map((station) => {
-    const stationPoint = { lat: station.lat, lng: station.lng };
-    const distances = locations.map((loc) =>
-      haversineDistance(loc, stationPoint),
-    );
-    const avgDistance =
-      distances.reduce((a, b) => a + b, 0) / distances.length;
-    const maxDistance = Math.max(...distances);
-    const centroidDist = haversineDistance(centroid, stationPoint);
-
-    return {
-      name: station.name,
-      lat: station.lat,
-      lng: station.lng,
-      avgDistance,
-      maxDistance,
-      score: avgDistance + maxDistance * 0.3 + centroidDist * 0.2,
-    };
-  });
-
-  candidates.sort((a, b) => a.score - b.score);
+  const midpoint = calculateCentroid(locations);
+  const pool = uniqueStations([...SEOUL_STATIONS, ...extraCandidates]);
+  const awayFromOrigins = pool.filter(
+    (station) => !isOriginStation(station, locations),
+  );
+  const candidates = (awayFromOrigins.length >= limit ? awayFromOrigins : pool)
+    .map((station) => scoreStation(station, locations, midpoint))
+    .sort((a, b) => a.score - b.score);
 
   return candidates.slice(0, limit).map(({ score: _, ...rest }) => rest);
 }

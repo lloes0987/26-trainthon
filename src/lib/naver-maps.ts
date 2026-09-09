@@ -1,6 +1,10 @@
 import type { LatLng } from "./location";
 import type { StationCandidate } from "./types";
-import { calculateCentroid, haversineDistance, SEOUL_STATIONS } from "./location";
+import {
+  calculateCentroid,
+  haversineDistance,
+  recommendStations,
+} from "./location";
 
 const GEOCODE_URL =
   "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode";
@@ -104,56 +108,24 @@ export async function recommendMidpointWithNaver(
 ): Promise<StationCandidate[]> {
   if (locations.length === 0) return [];
 
-  const centroid = calculateCentroid(locations);
-  const centerName = await naverReverseGeocode(centroid.lat, centroid.lng);
+  const midpoint = calculateCentroid(locations);
+  const extras: Array<{ name: string; lat: number; lng: number }> = [];
+  const areaName = await naverReverseGeocode(midpoint.lat, midpoint.lng);
 
-  const stationCandidates = SEOUL_STATIONS.map((station) => {
-    const point = { lat: station.lat, lng: station.lng };
-    const distances = locations.map((loc) => haversineDistance(loc, point));
-    const avgDistance =
-      distances.reduce((a, b) => a + b, 0) / distances.length;
-    const maxDistance = Math.max(...distances);
-    const centroidDist = haversineDistance(centroid, point);
-
-    return {
-      name: station.name,
-      lat: station.lat,
-      lng: station.lng,
-      avgDistance,
-      maxDistance,
-      score: avgDistance + maxDistance * 0.3 + centroidDist * 0.2,
-    };
-  });
-
-  stationCandidates.sort((a, b) => a.score - b.score);
-
-  const results: StationCandidate[] = [];
-
-  if (centerName) {
-    const distances = locations.map((loc) =>
-      haversineDistance(loc, centroid),
-    );
-    results.push({
-      name: centerName,
-      lat: centroid.lat,
-      lng: centroid.lng,
-      avgDistance:
-        distances.reduce((a, b) => a + b, 0) / distances.length,
-      maxDistance: Math.max(...distances),
-    });
+  if (areaName) {
+    const token = areaName.split(/\s+/).pop()?.replace(/역$/, "") ?? "";
+    if (token.length >= 2) {
+      const nearby = await naverGeocodeMany(`${token}역`, 4);
+      for (const place of nearby) {
+        if (haversineDistance(place, midpoint) > 2.5) continue;
+        extras.push({
+          name: place.address.includes("역") ? place.address : `${token}역`,
+          lat: place.lat,
+          lng: place.lng,
+        });
+      }
+    }
   }
 
-  for (const s of stationCandidates) {
-    if (results.length >= limit) break;
-    if (results.some((r) => r.name === s.name)) continue;
-    results.push({
-      name: s.name,
-      lat: s.lat,
-      lng: s.lng,
-      avgDistance: s.avgDistance,
-      maxDistance: s.maxDistance,
-    });
-  }
-
-  return results.slice(0, limit);
+  return recommendStations(locations, limit, extras);
 }
