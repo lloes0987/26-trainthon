@@ -22,13 +22,13 @@ interface TimeGridProps {
   onSlotHover?: (date: string, time: string, count: number) => void;
 }
 
-function groupCellColor(count: number, maxCount: number): string {
-  if (count === 0 || maxCount === 0) return "bg-white";
-  const ratio = count / maxCount;
-  if (ratio >= 1) return "bg-brand-dark";
-  if (ratio >= 0.66) return "bg-brand";
-  if (ratio >= 0.33) return "bg-brand/60";
-  return "bg-brand/25";
+const BRAND_RGB = "0, 56, 118";
+
+function overlapFill(count: number, maxCount: number): string {
+  if (count <= 0) return "transparent";
+  const ratio = Math.min(1, count / Math.max(maxCount, 1));
+  const alpha = 0.18 + ratio * 0.82;
+  return `rgba(${BRAND_RGB}, ${alpha.toFixed(3)})`;
 }
 
 export default function TimeGrid({
@@ -55,7 +55,7 @@ export default function TimeGrid({
       const count = slotCounts?.get(key) ?? 0;
 
       if (mode === "group") {
-        return `${groupCellColor(count, maxCount)}`;
+        return "bg-white";
       }
 
       return isSelected ? "bg-brand" : "bg-brand-soft";
@@ -140,11 +140,18 @@ export default function TimeGrid({
               >
                 {isHourSlot(time) ? formatTime12h(time) : ""}
               </td>
-              {dates.map((date) => (
+              {dates.map((date) => {
+                const count = slotCounts?.get(slotKey(date, time)) ?? 0;
+                return (
                 <td key={date} className="p-px">
                   <button
                     type="button"
                     data-slot={slotKey(date, time)}
+                    style={
+                      mode === "group"
+                        ? { backgroundColor: overlapFill(count, maxCount) }
+                        : undefined
+                    }
                     className={`h-4 w-full min-w-10 touch-none border border-white/80 ${getCellClass(date, time)} ${
                       mode === "group" ? "cursor-default" : "cursor-pointer"
                     }`}
@@ -152,10 +159,13 @@ export default function TimeGrid({
                       event.preventDefault();
                       startDrag(date, time);
                     }}
-                    aria-label={`${formatDateHeader(date)} ${formatTime12h(time)}`}
+                    aria-label={`${formatDateHeader(date)} ${formatTime12h(time)}${
+                      mode === "group" && count > 0 ? ` · ${count}명` : ""
+                    }`}
                   />
                 </td>
-              ))}
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -181,10 +191,15 @@ export default function TimeGrid({
               0명
             </span>
             <div className="flex h-3 overflow-hidden rounded-sm ring-1 ring-brand-light">
-              <div className="w-4 bg-brand/25" />
-              <div className="w-4 bg-brand/60" />
-              <div className="w-4 bg-brand" />
-              <div className="w-4 bg-brand-dark" />
+              {[1, 2, 3, 4].map((step) => (
+                <div
+                  key={step}
+                  className="w-4"
+                  style={{
+                    backgroundColor: overlapFill(step, 4),
+                  }}
+                />
+              ))}
             </div>
             <span>{maxCount}명</span>
           </>
