@@ -179,17 +179,6 @@ export default function CreateRoomForm({
             ? "만날 수 있는 날짜만 고르면 방을 만들어요."
             : copy.description}
         </p>
-        {mode !== "date" && (
-          <label className="inline-flex items-center gap-2 text-sm font-semibold text-brand-dark">
-            <input
-              type="checkbox"
-              checked={dateOnly}
-              onChange={(event) => setDateOnly(event.target.checked)}
-              className="h-4 w-4 rounded border-brand-light text-brand accent-brand"
-            />
-            날짜만 찾기
-          </label>
-        )}
         <div>
           <label
             htmlFor="title"
@@ -220,12 +209,25 @@ export default function CreateRoomForm({
         )}
 
         <section>
-          <h2 className="text-sm font-bold text-brand-dark">
-            어떤 날짜가 가능한가요?
-            <span className="ml-0.5 text-red-500" aria-hidden>
-              *
-            </span>
-          </h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="min-w-0 text-sm font-bold text-brand-dark">
+              어떤 날짜가 가능한가요?
+              <span className="ml-0.5 text-red-500" aria-hidden>
+                *
+              </span>
+            </h2>
+            {mode !== "date" && (
+              <label className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-brand-dark">
+                <input
+                  type="checkbox"
+                  checked={dateOnly}
+                  onChange={(event) => setDateOnly(event.target.checked)}
+                  className="h-4 w-4 rounded border-brand-light text-brand accent-brand"
+                />
+                날짜만 찾기
+              </label>
+            )}
+          </div>
           <p className="mt-0.5 text-[11px] text-muted">
             드래그해서 날짜를 고르세요
           </p>
