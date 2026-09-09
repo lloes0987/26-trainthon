@@ -18,7 +18,7 @@ export default function BrandLogo({
   const first =
     variant === "on-brand" ? "text-white" : "text-brand-dark";
   const second =
-    variant === "on-brand" ? "text-white/80" : "text-brand";
+    variant === "on-brand" ? "text-white" : "text-brand";
 
   return (
     <span

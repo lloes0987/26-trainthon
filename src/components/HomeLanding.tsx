@@ -10,15 +10,15 @@ export default function HomeLanding() {
       <section className="cute-hero relative flex min-h-full flex-1 flex-col items-center bg-[#003876] px-5 pb-8 pt-10 text-center text-white">
         <CuteSparkles />
 
-        <p className="relative font-cute text-sm tracking-wide text-white/90">
-          {BRAND_SUBTITLE}
-        </p>
-        <h1 className="relative mt-2">
+        <h1 className="relative">
           <BrandLogo
             size="lg"
             className="justify-center font-cute text-[2.6rem] leading-none"
           />
         </h1>
+        <p className="relative mt-2 font-cute text-sm tracking-wide text-white/90">
+          {BRAND_SUBTITLE}
+        </p>
 
         <div className="relative mt-4 flex flex-1 items-center justify-center">
           <span className="glass-pill absolute left-0 top-8 animate-float">
