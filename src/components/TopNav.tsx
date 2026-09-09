@@ -5,7 +5,7 @@ import BackButton from "@/components/BackButton";
 import BrandLogo from "@/components/BrandLogo";
 
 const navChip =
-  "inline-flex min-h-7 items-center rounded-full bg-white/15 px-2.5 text-xs font-semibold text-white";
+  "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-full bg-white/15 px-2.5 text-xs font-semibold leading-none text-white";
 
 export function DirectInputNavLink() {
   return (
@@ -20,7 +20,7 @@ export function HomeNavLink() {
     <Link
       href="/"
       aria-label="홈으로"
-      className="inline-flex min-h-7 items-center gap-1 rounded-full bg-white px-2.5 text-xs font-semibold text-[#003876] shadow-sm"
+      className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-white px-2.5 text-xs font-semibold leading-none text-[#003876] shadow-sm"
     >
       <HiHome className="h-3.5 w-3.5" aria-hidden />
       처음으로

@@ -22,14 +22,14 @@ export default function PageHero({
           {badge}
         </p>
       )}
-      <div className="flex items-center gap-1">
-        <div className="flex min-w-[5.75rem] flex-1 justify-start">
+      <div className="relative flex min-h-7 items-center justify-between gap-1.5">
+        <div className="relative z-10 flex shrink-0">
           <BackButton />
         </div>
-        <h1 className="shrink-0 text-center font-cute text-lg leading-tight">
+        <h1 className="pointer-events-none absolute inset-x-0 truncate px-16 text-center font-cute text-lg leading-tight">
           {title}
         </h1>
-        <div className="flex min-w-[5.75rem] flex-1 items-center justify-end gap-1.5">
+        <div className="relative z-10 flex shrink-0 items-center justify-end gap-1.5">
           {extra}
           <HomeNavLink />
         </div>
