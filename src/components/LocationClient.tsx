@@ -436,13 +436,6 @@ export default function LocationClient({
                 날짜만 정하기
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => router.push(`/room/${room.share_code}`)}
-              className="text-sm text-muted hover:text-brand"
-            >
-              ← 약속방으로 돌아가기
-            </button>
           </div>
         )}
       </div>

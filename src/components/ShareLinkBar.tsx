@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  buildShareMessage,
-  copyToClipboard,
-  resolveClientShareUrl,
-  shareLink,
-} from "@/lib/share-url";
+import { copyToClipboard, resolveClientShareUrl } from "@/lib/share-url";
 
 interface ShareLinkBarProps {
   url: string;
@@ -19,7 +14,6 @@ interface ShareLinkBarProps {
 
 export default function ShareLinkBar({
   url,
-  title,
   sharePath,
   variant = "inline",
   intent = "time",
@@ -45,31 +39,10 @@ export default function ShareLinkBar({
     if (!ok) inputRef.current?.select();
   };
 
-  const handleCopyMessage = async () => {
-    const message = buildShareMessage(title, resolvedUrl, intent);
-    const ok = await copyToClipboard(message);
-    showFeedback(ok ? "공유 문구가 복사됐어요!" : "복사에 실패했어요.");
-  };
-
-  const handleShare = async () => {
-    const result = await shareLink({
-      url: resolvedUrl,
-      title,
-      text: buildShareMessage(title, resolvedUrl, intent),
-    });
-
-    if (result === "shared") showFeedback("공유했어요!");
-    else if (result === "copied") showFeedback("공유 문구가 복사됐어요!");
-    else showFeedback("공유를 취소했어요.");
-  };
-
   const selectUrl = () => {
     inputRef.current?.select();
     inputRef.current?.setSelectionRange(0, resolvedUrl.length);
   };
-
-  const canNativeShare =
-    typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   return (
     <div className={className}>
@@ -81,7 +54,7 @@ export default function ShareLinkBar({
         </p>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+      <div className="flex items-stretch gap-2">
         <div className="flex min-w-0 flex-1 items-center rounded-xl border border-brand-light bg-brand-soft/50 px-3 py-2">
           <input
             ref={inputRef}
@@ -94,20 +67,13 @@ export default function ShareLinkBar({
           />
         </div>
 
-        <div className="flex shrink-0 gap-2">
-          <button type="button" onClick={handleCopyLink} className="btn-secondary flex-1 sm:flex-none">
-            링크 복사
-          </button>
-          {canNativeShare ? (
-            <button type="button" onClick={handleShare} className="btn-primary flex-1 sm:flex-none">
-              공유하기
-            </button>
-          ) : (
-            <button type="button" onClick={handleCopyMessage} className="btn-primary flex-1 sm:flex-none">
-              문구 복사
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          className="btn-primary shrink-0"
+        >
+          링크 복사
+        </button>
       </div>
 
       {feedback && (
